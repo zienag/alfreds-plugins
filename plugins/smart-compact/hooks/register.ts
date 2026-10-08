@@ -12,6 +12,7 @@ const resuming = { plugin: 'smart-compact', key: 'resuming' } as const
 export const register: Register = (on, options) => {
   const before = String(options.beforeCompact ?? '').trim()
   const note = String(options.summaryNote ?? '').trim()
+  const startAt = Math.max(0, Number(options.startAt ?? 0) || 0) * 1000
 
   on('session.start', async ($, e, next) => {
     await $.tool.register({
@@ -46,7 +47,7 @@ export const register: Register = (on, options) => {
     const ran = await next(e)
     if (e.agentId !== undefined || e.tool === TOOL || ran.deny !== undefined) return ran
     const { tokens = 0, window } = (await $.session.usage()).context
-    const levels = levelsFor(window)
+    const levels = levelsFor(window, startAt)
     const { value: was = 0 } = await $.state.get(nudged)
     const [due, remember] = decide(tokens, was, levels)
     if (remember !== was) await $.state.set(nudged, remember)

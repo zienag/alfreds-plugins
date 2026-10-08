@@ -14,9 +14,10 @@ const FOCUS_DOC =
   'which task you will continue. A summary or a retelling of key numbers and facts is FORBIDDEN here. ' +
   'For example: focus "focus on the auth bug fix; the deploy is finished".'
 
-export function levelsFor(window: number): Levels {
+/** startAt (tokens) moves the whole ladder in proportion to its first start, whatever the window; 0 is automatic. */
+export function levelsFor(window: number, startAt = 0): Levels {
   return LADDER.map(([start, step, share]) => {
-    const scale = Math.min(1, (share * window) / start)
+    const scale = startAt > 0 ? startAt / LADDER[0][0] : Math.min(1, (share * window) / start)
     return [Math.round(start * scale), Math.round(step * scale)] as const
   })
 }

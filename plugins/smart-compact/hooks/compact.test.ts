@@ -96,6 +96,17 @@ test('a 200k window is nudged from 60% of it, before the built-in auto-compact',
   expect((await nudges($))[0]).toContain('Context 161k > 160k. Compact immediately')
 })
 
+test('startAt moves the whole ladder in proportion, past the 200k window cap', {
+  options: { startAt: 150 },
+}, async ($, on) => {
+  const usage = world(on, { tokens: 140_000, window: 200_000 })
+  expect(await nudges($)).toEqual([])
+  usage.tokens = 151_000
+  expect((await nudges($))[0]).toContain('Context 151k > 150k. Between tasks')
+  usage.tokens = 181_000
+  expect((await nudges($))[0]).toContain('Context 181k > 180k. Strongly advised')
+})
+
 test('a subagent tool call is never nudged', async ($, on) => {
   world(on, { tokens: 420_000 })
   const ran = await $.tool.call({ tool: 'Bash', command: 'ls', agentId: 'a1' } as never)

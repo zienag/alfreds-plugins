@@ -28,10 +28,15 @@ the nudges start at 120k, 140k and 160k, before the built-in auto-compact.
 
 ## Options
 
-Both are empty by default; set them in `/config`, with
-`claude plugin configure smart-compact`, or in settings.json under
-`pluginConfigs["smart-compact@alfreds-plugins"].options`.
+Ask the agent, for example "start smart compaction at 150k": the plugin's
+`configure` skill sets the option. Or set them in `/config`, with
+`claude plugin configure smart-compact@alfreds-plugins`, or in settings.json under
+`pluginConfigs["smart-compact@alfreds-plugins"].options`. A running session
+takes new values after `/reload-plugins`.
 
+- `startAt`: where the nudges start, in thousands of tokens; the later steps
+  keep their proportions, so 150 gives 150k, 180k and 240k, in any window.
+  0 (the default) is the automatic ladder above.
 - `beforeCompact`: a step the agent takes before it compacts, written in lower
   case to follow "Between tasks or subtasks, ", for example
   `run the debrief skill`.

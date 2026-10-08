@@ -1,10 +1,16 @@
 {
   "name": "smart-compact",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The agent compacts its own context between tasks, with a focus it writes for the compactor, and carries on by itself",
   "author": { "name": "Alfred Zien" },
   "types": "./types/index.d.ts",
   "userConfig": {
+    "startAt": {
+      "type": "number",
+      "title": "Start at, thousand tokens",
+      "description": "Context size where the nudges start, in thousands of tokens; the later steps keep their proportions (150 gives 150k, 180k, 240k). 0 for automatic",
+      "default": 0
+    },
     "beforeCompact": {
       "type": "string",
       "title": "Before compacting",
