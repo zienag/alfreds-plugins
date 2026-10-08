@@ -151,36 +151,6 @@ test("a subagent is asked to hand over on its own context's ladder, once per ste
   expect(await nudges($)).toEqual([])
 })
 
-test("a subagent on a smaller model is measured against that model's window", async ($, on) => {
-  const usage = world(on, { tokens: 100_000 })
-  await step($, usage, 'a1', 119_000, 'claude-haiku-4-5-20251001')
-  expect(await nudges($, 'a1')).toEqual([])
-  await step($, usage, 'a1', 121_000, 'claude-haiku-4-5-20251001')
-  expect((await nudges($, 'a1'))[0]).toContain('Context 121k: a lot, not a limit.')
-  await step($, usage, 'a1', 161_000, 'claude-haiku-4-5-20251001')
-  expect((await nudges($, 'a1'))[0]).toContain('Context 161k. Stop now')
-})
-
-test('a [1m] tag on the request names a million, whatever the catalogue says of the model', async ($, on) => {
-  const usage = world(on, { tokens: 100_000, window: 200_000 })
-  await step($, usage, 'a1', 255_000, 'claude-sonnet-4-6[1m]')
-  expect((await nudges($, 'a1'))[0]).toContain('Context 255k: a lot, not a limit.')
-})
-
-test("a subagent on the main session's own model shares its window, settings included", async ($, on) => {
-  const usage = world(on, { tokens: 100_000, window: 300_000 })
-  await step($, usage, undefined, 100_000, 'claude-fable-5-1')
-  await step($, usage, 'a1', 185_000, 'claude-fable-5-1')
-  expect((await nudges($, 'a1'))[0]).toContain('Context 185k: a lot, not a limit.')
-})
-
-test("an account without the million, seen on the main session's 1M model, caps a subagent's catalogue window", async ($, on) => {
-  const usage = world(on, { tokens: 100_000, window: 200_000 })
-  await step($, usage, undefined, 100_000, 'claude-fable-5-1')
-  await step($, usage, 'a1', 125_000, 'claude-opus-5')
-  expect((await nudges($, 'a1'))[0]).toContain('Context 125k: a lot, not a limit.')
-})
-
 test('a finished subagent leaves no ladder behind for an agent reusing its id', async ($, on) => {
   const usage = world(on, { tokens: 100_000 })
   await step($, usage, 'a1', 255_000)
@@ -220,10 +190,10 @@ function world(on: On, start: World) {
   return state
 }
 
-/** One model request of a subagent (or of the main session, no agentId) whose context ends at `tokens`. */
-async function step($: Engine, state: { stepTokens: number }, agentId: string | undefined, tokens: number, model = 'm') {
+/** One model request of a subagent whose context ends at `tokens`. */
+async function step($: Engine, state: { stepTokens: number }, agentId: string, tokens: number) {
   state.stepTokens = tokens
-  for await (const _ of $.turn.step({ turnId: 't1', index: 0, model, messageCount: 1, agentId })) { /* drained */ }
+  for await (const _ of $.turn.step({ turnId: 't1', index: 0, model: 'm', messageCount: 1, agentId })) { /* drained */ }
 }
 
 async function queue($: Engine, focus: string) {

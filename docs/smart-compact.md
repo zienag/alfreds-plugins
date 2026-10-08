@@ -69,42 +69,31 @@ module variable is read and written synchronously after the one `await` on
 usage, so the second call sees the first's write. A reload of the mod starts
 the variable over, which costs at most one repeated nudge at the current step.
 
-## A subagent's window comes from the engine's model catalogue, copied
+## A subagent is measured against the main session's window
 
-`$.session.usage().context.window` is the main session's window; no `$` call
-answers the window of another model, and `$.agent.list()` does not name an
-agent's model. What the engine itself does (2.1.293, the function that
-`/context` and auto-compact read, found by its `unknown-model` source string):
-`[1m]` in the model id gives a million; else the model catalogue's
-`context.native_1m` gives a million; else a settings or
-`CLAUDE_CODE_MAX_CONTEXT_TOKENS` value; else 200k. The catalogue is in the
-binary (search `native_1m:!0`): Haiku 5.5, Sonnet 5 and 5.5, Opus 4.7 to 5.5,
-Fable 5 and 5.1, Mythos 5 and 5.1 are native 1M; Haiku 4.5, Sonnet 4.5 and
-4.6, Opus 4.0 to 4.6 and the 3.x line are 200k.
+No `$` call answers the window of another model: `$.session.usage()` is the
+main session's, inside a subagent's step too (checked headless on the app's
+2.1.293 binary with a probe plugin: a subagent spawned with `model: haiku`
+steps with `e.model` `claude-haiku-5-5` and its own `agentId`, and
+`context.window` in that step is the main session's million), and
+`$.agent.list()` does not name an agent's model.
 
-The mod copies that table into `ladder.ts` and reads the model from
-`turn.step`'s `e.model` (the id the request names, `[1m]` tag included; the
-API's `usage.model` drops the tag). Checked headless on the app's 2.1.293
-binary with a probe plugin that logs each step: a subagent spawned with
-`model: haiku` steps with `e.model` `claude-haiku-5-5` and its own `agentId`,
-while `$.session.usage().context.window` inside that step is still the main
-session's million. Precedence: the main session's own model
-gets the main session's window, settings included; a `[1m]` tag a million; a
-catalogued model its catalogue window; an unknown model the main session's
-window. A new model therefore inherits until the table learns it.
+A table of models and windows was tried and dropped: a window is not a
+property of the model id. The engine decides it per session from the id, the
+account and the environment, and the same `claude-opus-5` runs at 200k under
+`CLAUDE_CODE_DISABLE_1M_CONTEXT=1` and at a million without it (the engine's
+own catalogue, with `context.native_1m` per model, sits inside the binary and
+is read nowhere a plugin can reach). Probed on this account, `--model` per
+run: `claude-opus-5`, `claude-opus-5[1m]`, Opus 5.5, Sonnet 5.5, Haiku 5.5 and
+Opus 4.8 report `window` 1,000,000 with source `model-default`; Sonnet 4.6
+reports 200,000; `claude-sonnet-4-6[1m]` reports 200,000 and the request
+fails with a 429 `long_context_credits_required`. So the subagent ladder uses
+the main session's window, and a subagent on a smaller model than the main
+session's is the one case it gets wrong.
 
-The million is an account entitlement, and the engine shows its absence on the
-main session: on this account (2.1.293, `--model` per run, the same probe)
-`claude-opus-5`, `claude-opus-5[1m]`, Opus 5.5, Sonnet 5.5, Haiku 5.5 and
-Opus 4.8 all report `window` 1,000,000 with source `model-default`, Sonnet 4.6
-reports 200,000, and `claude-sonnet-4-6[1m]` reports 200,000 too, the request
-itself failing with a 429 `long_context_credits_required`. So when the main
-session runs a catalogued 1M model in a window under a million, the account
-has no million, and the mod caps every catalogue window at the main session's.
-A user-set compaction window (`autoCompactWindow`, `/autocompact`,
-`CLAUDE_CODE_AUTO_COMPACT_WINDOW`) is `breakdown.rawMaxTokens`, never
-`context.window`, and the ladder ignores it on purpose: the mod replaces
-auto-compact.
+A user-set compaction window (`/autocompact`, `autoCompactWindow`,
+`CLAUDE_CODE_AUTO_COMPACT_WINDOW`) is `breakdown.rawMaxTokens` from
+`$.session.usage({ breakdown })`, not `context.window`.
 
 ## The continue prompt carries no marker
 

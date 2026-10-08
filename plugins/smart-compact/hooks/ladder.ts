@@ -63,50 +63,6 @@ export function handoverText(tokens: number, levels: Levels): string {
   return `${size}: a lot, not a limit. Two thirds of your task done? Carry on. Less? Finish the piece you are on, then ${HANDOVER}`
 }
 
-/** The engine's model catalogue, by canonical id: 1M for a model born with it, 200k for the rest; the request's `[1m]` suffix wins. */
-const WINDOWS: Record<string, number> = {
-  'haiku-5-5': 1_000_000,
-  'sonnet-5': 1_000_000,
-  'sonnet-5-5': 1_000_000,
-  'opus-4-7': 1_000_000,
-  'opus-4-8': 1_000_000,
-  'opus-5': 1_000_000,
-  'opus-5-5': 1_000_000,
-  'fable-5': 1_000_000,
-  'fable-5-1': 1_000_000,
-  'mythos-5': 1_000_000,
-  'mythos-5-1': 1_000_000,
-  'haiku-4-5': 200_000,
-  'sonnet-4-5': 200_000,
-  'sonnet-4-6': 200_000,
-  'opus-4-0': 200_000,
-  'opus-4-1': 200_000,
-  'opus-4-5': 200_000,
-  'opus-4-6': 200_000,
-}
-
-/**
- * A model's window: the main session's own for its model, else the catalogue's, else the main session's.
- * An account without the million shows it on the main session (a 1M model in a smaller window), and then no model gets more than that.
- */
-export function windowFor(model: string, main: { model: string; window: number }): number {
-  const id = canonical(model)
-  if (id === canonical(main.model)) return main.window
-  const known = /\[1m\]/i.test(model) ? 1_000_000 : WINDOWS[id]
-  if (known === undefined) return main.window
-  const unentitled = WINDOWS[canonical(main.model)] === 1_000_000 && main.window < 1_000_000
-  return unentitled ? Math.min(known, main.window) : known
-}
-
-/** `us.anthropic.claude-sonnet-4-5-20250929[1m]` is `sonnet-4-5`: no provider prefix, no date, no context tag. */
-function canonical(model: string): string {
-  return model
-    .toLowerCase()
-    .replace(/\[1m\]/, '')
-    .replace(/^.*claude-/, '')
-    .replace(/[-@]\d{8}$/, '')
-}
-
 /** A request's whole context: what it read, cached or not, and what it wrote. */
 export function contextTokens(usage: { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number }): number {
   return usage.input_tokens + usage.cache_read_input_tokens + usage.cache_creation_input_tokens + usage.output_tokens

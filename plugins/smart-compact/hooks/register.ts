@@ -1,7 +1,7 @@
 import type { EngineInterface, Register } from 'claude-code'
 
 import {
-  FOCUS_LIMIT, compactInstructions, contextTokens, decide, handoverText, levelsFor, nudgeText, resumeText, squash, windowFor,
+  FOCUS_LIMIT, compactInstructions, contextTokens, decide, handoverText, levelsFor, nudgeText, resumeText, squash,
 } from './ladder'
 
 const NAME = 'compact_me'
@@ -16,8 +16,7 @@ export const register: Register = (on, options) => {
   const startAt = Math.max(0, Number(options.startAt ?? 0) || 0) * 1000
   let nudged = 0
   let queued = false
-  let mainModel = ''
-  const agents = new Map<string, { model: string; tokens: number; nudged: number }>()
+  const agents = new Map<string, { tokens: number; nudged: number }>()
 
   on('session.start', async ($, e, next) => {
     await $.tool.register({
@@ -53,10 +52,8 @@ export const register: Register = (on, options) => {
 
   on('turn.step', async function* ($, e, next) {
     const step = yield* next(e)
-    if (e.agentId === undefined) mainModel = e.model
-    else if (step.usage !== null) {
-      const agent = agents.get(e.agentId)
-      agents.set(e.agentId, { model: e.model, tokens: contextTokens(step.usage), nudged: agent?.nudged ?? 0 })
+    if (e.agentId !== undefined && step.usage !== null) {
+      agents.set(e.agentId, { tokens: contextTokens(step.usage), nudged: agents.get(e.agentId)?.nudged ?? 0 })
     }
     return step
   })
@@ -66,10 +63,9 @@ export const register: Register = (on, options) => {
     if (e.tool === TOOL || ran.deny !== undefined) return ran
     const agent = e.agentId
     if (agent === undefined && queued) return ran
-    const { tokens: mainTokens = 0, window: mainWindow } = (await $.session.usage()).context
-    const main = { model: mainModel, window: mainWindow }
+    const { tokens: mainTokens = 0, window } = (await $.session.usage()).context
+    const levels = levelsFor(window, startAt)
     if (agent === undefined) {
-      const levels = levelsFor(mainWindow, startAt)
       const [due, remember] = decide(mainTokens, nudged, levels)
       const first = nudged === 0
       nudged = remember
@@ -78,7 +74,6 @@ export const register: Register = (on, options) => {
     }
     const who = agents.get(agent)
     if (who === undefined) return ran
-    const levels = levelsFor(windowFor(who.model, main), startAt)
     const [due, remember] = decide(who.tokens, who.nudged, levels)
     who.nudged = remember
     if (due === null) return ran
