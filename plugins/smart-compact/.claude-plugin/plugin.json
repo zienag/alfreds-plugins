@@ -1,6 +1,6 @@
 {
   "name": "smart-compact",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "The agent compacts its own context between tasks, with a focus it writes for the compactor, and carries on by itself",
   "author": { "name": "Alfred Zien" },
   "types": "./types/index.d.ts",

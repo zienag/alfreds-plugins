@@ -16,8 +16,9 @@ of whatever it is doing.
   "Context compacted. Continue the task.", so the work goes on without you.
 
 An interrupted turn drops the queued compaction. A subagent cannot compact the
-main session and is never nudged. If the mod reloads while `/compact` runs, the
-continue message is still sent, once.
+main session and is never nudged. Once a focus is queued the nudges stop for the
+rest of the turn. If the mod reloads while `/compact` runs, the continue
+message is still sent, once.
 
 ## When it nudges
 
@@ -60,3 +61,10 @@ To work on it, load the folder instead: `claude --plugin-dir plugins/smart-compa
 ```bash
 claude plugin test plugins/smart-compact
 ```
+
+```bash
+tsc -p plugins/smart-compact
+```
+
+The type-check needs `.claude-plugin/types/`, which the engine writes once the
+plugin has loaded in a session (`claude --plugin-dir plugins/smart-compact`).

@@ -7,7 +7,6 @@ const LADDER = [
   [400_000, 10_000, 0.8],
 ] as const
 export const FOCUS_LIMIT = 280
-export const MARK = '[smart-compact]'
 
 const FOCUS_DOC =
   'The focus is a tweet-size extra instruction for the compactor, so it understands your intent: ' +
@@ -58,5 +57,5 @@ export function compactInstructions(focus: string, before: string, note: string)
 }
 
 export function resumeText(): string {
-  return `${MARK} Context compacted. Continue the task.`
+  return 'Context compacted. Continue the task. If the turn before ended with a question to the user, wait for the answer instead.'
 }

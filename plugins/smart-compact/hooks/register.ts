@@ -5,7 +5,6 @@ import { FOCUS_LIMIT, compactInstructions, decide, levelsFor, nudgeText, resumeT
 const NAME = 'compact_me'
 const TOOL = 'mcp__smart-compact__compact_me'
 
-const nudged = { plugin: 'smart-compact', key: 'nudged' } as const
 const focus = { plugin: 'smart-compact', key: 'focus' } as const
 const resuming = { plugin: 'smart-compact', key: 'resuming' } as const
 
@@ -13,6 +12,8 @@ export const register: Register = (on, options) => {
   const before = String(options.beforeCompact ?? '').trim()
   const note = String(options.summaryNote ?? '').trim()
   const startAt = Math.max(0, Number(options.startAt ?? 0) || 0) * 1000
+  let nudged = 0
+  let queued = false
 
   on('session.start', async ($, e, next) => {
     await $.tool.register({
@@ -27,6 +28,7 @@ export const register: Register = (on, options) => {
         properties: { focus: { type: 'string', description: 'What the summary should keep in detail' } },
         required: ['focus'],
       },
+      isDeferred: false,
     })
     const started = await next(e)
     await resume($)
@@ -35,38 +37,41 @@ export const register: Register = (on, options) => {
 
   on('tool.call', { tool: TOOL }, async ($, e) => {
     if (e.agentId !== undefined) return { deny: `${NAME}: only the main session compacts.` }
-    const text = squash(e.focus)
+    const text = squash(typeof e.focus === 'string' ? e.focus : '')
+    if (text === '') return { deny: `${NAME}: focus is empty. Name the task the work continues with. Nothing queued.` }
     if (text.length > FOCUS_LIMIT) {
       return { deny: `${NAME}: focus is ${text.length} characters, limit ${FOCUS_LIMIT}. Shorten it. Nothing queued.` }
     }
     await $.state.set(focus, text)
+    queued = true
     return { result: 'Queued: the conversation is compacted once this turn ends, and the task continues after it. End the turn now.' }
-  })
+  }).catch(($, e, next) => (next.called ? next(e) : { deny: `${NAME}: failed, nothing queued.` }))
 
   on('tool.call', async ($, e, next) => {
     const ran = await next(e)
-    if (e.agentId !== undefined || e.tool === TOOL || ran.deny !== undefined) return ran
+    if (e.agentId !== undefined || e.tool === TOOL || ran.deny !== undefined || queued) return ran
     const { tokens = 0, window } = (await $.session.usage()).context
     const levels = levelsFor(window, startAt)
-    const { value: was = 0 } = await $.state.get(nudged)
-    const [due, remember] = decide(tokens, was, levels)
-    if (remember !== was) await $.state.set(nudged, remember)
+    const [due, remember] = decide(tokens, nudged, levels)
+    const first = nudged === 0
+    nudged = remember
     if (due === null) return ran
-    return { ...ran, context: [...(ran.context ?? []), nudgeText(tokens, was === 0, levels, before, TOOL)] }
-  })
+    return { ...ran, context: [...(ran.context ?? []), nudgeText(tokens, first, levels, before, TOOL)] }
+  }).catch(($, e, next) => next(e))
 
   on('turn.complete', async ($, e, next) => {
     const done = await next(e)
     if (e.agentId !== undefined) return done
-    const { value: queued = null } = await $.state.get(focus)
-    if (queued === null) return done
+    queued = false
+    const { value: planned = null } = await $.state.get(focus)
+    if (planned === null) return done
     await $.state.set(focus, null)
     if (e.reason !== 'answer') {
-      $.ui.toast('smart-compact: the turn was interrupted, the queued /compact dropped')
+      $.ui.toast('smart-compact: the turn was interrupted, the queued compaction dropped')
       return done
     }
     await $.state.set(resuming, resumeText())
-    $.clock.after(0, () => void compact($, compactInstructions(queued, before, note)))
+    $.clock.after(0, () => void compact($, compactInstructions(planned, before, note)))
     return done
   })
 }

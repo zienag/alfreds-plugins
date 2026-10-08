@@ -2,6 +2,8 @@ import type { On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
+const RESUME = 'Continue the task. If the turn before ended with a question to the user, wait for the answer instead.'
+
 test('a queued focus compacts after the answer, then the task continues', async ($, on) => {
   const { calls, clock } = world(on, { tokens: 100_000 })
   await queue($, 'focus on the auth bug fix; the deploy is finished')
@@ -10,7 +12,7 @@ test('a queued focus compacts after the answer, then the task continues', async 
   await clock.settle()
   expect(calls).toEqual([
     'compact: focus on the auth bug fix; the deploy is finished Omit the compaction routine itself: context nudges, compact_me.',
-    'submit: [smart-compact] Context compacted. Continue the task.',
+    `submit: Context compacted. ${RESUME}`,
   ])
 })
 
@@ -37,7 +39,7 @@ test('a reload of the mod while /compact runs still continues the task, once', a
   await held.clock.settle()
   expect(held.calls).toHaveLength(1)
   await $.session.start({ cwd: '/tmp', surface: null, isInteractive: false })
-  expect(held.calls[1]).toEqual('submit: [smart-compact] Context compacted. Continue the task.')
+  expect(held.calls[1]).toEqual(`submit: Context compacted. ${RESUME}`)
   held.release()
   await held.clock.settle()
   expect(held.calls).toHaveLength(2)
@@ -60,6 +62,12 @@ test('a focus over the limit is refused and nothing is queued', async ($, on) =>
   await $.turn.complete(answered())
   await clock.advance(10_000)
   expect(calls).toEqual([])
+})
+
+test('an empty focus is refused', async ($, on) => {
+  world(on, { tokens: 100_000 })
+  const ran = await $.tool.call({ tool: COMPACT_ME, focus: ' \n ' } as never)
+  expect(ran.deny).toContain('focus is empty')
 })
 
 test('a subagent cannot queue a compaction of the main session', async ($, on) => {
@@ -85,6 +93,24 @@ test('the nudge comes once per ladder step, explains the focus only the first ti
   expect(await nudges($)).toEqual([])
   usage.tokens = 251_000
   expect((await nudges($))[0]).toContain('A summary or a retelling')
+})
+
+test('parallel tool calls past a step are nudged once between them', async ($, on) => {
+  world(on, { tokens: 255_000 })
+  const ran = await Promise.all([
+    $.tool.call({ tool: 'Bash', command: 'ls' } as never),
+    $.tool.call({ tool: 'Read', file_path: '/x' } as never),
+  ])
+  expect(ran.flatMap(r => [...(r.context ?? [])])).toHaveLength(1)
+})
+
+test('once a focus is queued the nudges stop until the turn ends', async ($, on) => {
+  const usage = world(on, { tokens: 255_000 })
+  await queue($, 'focus on the parser')
+  usage.tokens = 310_000
+  expect(await nudges($)).toEqual([])
+  await $.turn.complete({ ...answered(), reason: 'aborted', isAborted: true })
+  expect(await nudges($)).toHaveLength(1)
 })
 
 test('a 200k window is nudged from 60% of it, before the built-in auto-compact', async ($, on) => {
