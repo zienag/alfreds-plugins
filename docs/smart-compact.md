@@ -3,6 +3,25 @@
 Working notes for whoever changes the mod. Each fact names how it was checked
 and on which Claude Code build; recheck on a build that changes the hooks API.
 
+## How 0.2.1 was checked end to end
+
+One headless run of the app's 2.1.293 binary with the installed plugin, the
+prompt asking for two parallel Bash calls, an empty-focus `compact_me`, then a
+real one, with `startAt` set to 10 through `--settings` so the ladder is in
+reach. Read from the run's stream and its transcript file:
+
+- `compact_me` is in the tool list at init and was called without a ToolSearch.
+- The two parallel calls produced one `hook_additional_context` record, one
+  nudge.
+- The empty focus came back as a tool error with the mod's text.
+- After the answer, `/compact` ran (31.8k to 7.3k tokens), then the model got
+  "The smart-compact plugin sent a message: Context compacted. Continue the
+  task..." and answered it.
+
+The stream (`--output-format stream-json`) does not show hook context or a
+plugin's prompt; the session's transcript file under `~/.claude/projects/`
+does.
+
 ## The compaction runs as `/compact`, not `$.session.compact`
 
 The desktop app runs its sessions headless (the SDK path), and there
