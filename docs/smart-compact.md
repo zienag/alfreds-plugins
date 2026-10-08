@@ -93,6 +93,19 @@ gets the main session's window, settings included; a `[1m]` tag a million; a
 catalogued model its catalogue window; an unknown model the main session's
 window. A new model therefore inherits until the table learns it.
 
+The million is an account entitlement, and the engine shows its absence on the
+main session: on this account (2.1.293, `--model` per run, the same probe)
+`claude-opus-5`, `claude-opus-5[1m]`, Opus 5.5, Sonnet 5.5, Haiku 5.5 and
+Opus 4.8 all report `window` 1,000,000 with source `model-default`, Sonnet 4.6
+reports 200,000, and `claude-sonnet-4-6[1m]` reports 200,000 too, the request
+itself failing with a 429 `long_context_credits_required`. So when the main
+session runs a catalogued 1M model in a window under a million, the account
+has no million, and the mod caps every catalogue window at the main session's.
+A user-set compaction window (`autoCompactWindow`, `/autocompact`,
+`CLAUDE_CODE_AUTO_COMPACT_WINDOW`) is `breakdown.rawMaxTokens`, never
+`context.window`, and the ladder ignores it on purpose: the mod replaces
+auto-compact.
+
 ## The continue prompt carries no marker
 
 The engine frames a plugin's prompt for the model as "The smart-compact plugin

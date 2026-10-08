@@ -85,12 +85,17 @@ const WINDOWS: Record<string, number> = {
   'opus-4-6': 200_000,
 }
 
-/** A model's window: the main session's own for its model, else the catalogue's, else the main session's. */
+/**
+ * A model's window: the main session's own for its model, else the catalogue's, else the main session's.
+ * An account without the million shows it on the main session (a 1M model in a smaller window), and then no model gets more than that.
+ */
 export function windowFor(model: string, main: { model: string; window: number }): number {
   const id = canonical(model)
   if (id === canonical(main.model)) return main.window
-  if (/\[1m\]/i.test(model)) return 1_000_000
-  return WINDOWS[id] ?? main.window
+  const known = /\[1m\]/i.test(model) ? 1_000_000 : WINDOWS[id]
+  if (known === undefined) return main.window
+  const unentitled = WINDOWS[canonical(main.model)] === 1_000_000 && main.window < 1_000_000
+  return unentitled ? Math.min(known, main.window) : known
 }
 
 /** `us.anthropic.claude-sonnet-4-5-20250929[1m]` is `sonnet-4-5`: no provider prefix, no date, no context tag. */

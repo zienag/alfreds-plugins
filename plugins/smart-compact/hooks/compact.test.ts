@@ -174,6 +174,13 @@ test("a subagent on the main session's own model shares its window, settings inc
   expect((await nudges($, 'a1'))[0]).toContain('Context 185k: a lot, not a limit.')
 })
 
+test("an account without the million, seen on the main session's 1M model, caps a subagent's catalogue window", async ($, on) => {
+  const usage = world(on, { tokens: 100_000, window: 200_000 })
+  await step($, usage, undefined, 100_000, 'claude-fable-5-1')
+  await step($, usage, 'a1', 125_000, 'claude-opus-5')
+  expect((await nudges($, 'a1'))[0]).toContain('Context 125k: a lot, not a limit.')
+})
+
 test('a finished subagent leaves no ladder behind for an agent reusing its id', async ($, on) => {
   const usage = world(on, { tokens: 100_000 })
   await step($, usage, 'a1', 255_000)
