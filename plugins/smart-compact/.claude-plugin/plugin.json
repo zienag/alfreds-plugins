@@ -1,0 +1,21 @@
+{
+  "name": "smart-compact",
+  "version": "0.1.0",
+  "description": "The agent compacts its own context between tasks, with a focus it writes for the compactor, and carries on by itself",
+  "author": { "name": "Alfred Zien" },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "beforeCompact": {
+      "type": "string",
+      "title": "Before compacting",
+      "description": "A step the agent takes before it compacts, in lower case, e.g. \"run the debrief skill\"; empty for none",
+      "default": ""
+    },
+    "summaryNote": {
+      "type": "string",
+      "title": "Note for every summary",
+      "description": "An extra instruction the compactor gets each time, e.g. the language to write the summary in; empty for none",
+      "default": ""
+    }
+  }
+}

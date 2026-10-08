@@ -1,0 +1,14 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "alfreds-plugins",
+  "description": "Alfred Zien's Claude Code mods",
+  "owner": { "name": "Alfred Zien" },
+  "plugins": [
+    {
+      "name": "smart-compact",
+      "source": "./plugins/smart-compact",
+      "description": "The agent compacts its own context between tasks, with a focus it writes for the compactor, and carries on by itself",
+      "version": "0.1.0"
+    }
+  ]
+}
