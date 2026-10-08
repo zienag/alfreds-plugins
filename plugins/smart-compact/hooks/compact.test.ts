@@ -133,10 +133,32 @@ test('startAt moves the whole ladder in proportion, past the 200k window cap', {
   expect((await nudges($))[0]).toContain('Context 181k > 180k. Strongly advised')
 })
 
-test('a subagent tool call is never nudged', async ($, on) => {
-  world(on, { tokens: 420_000 })
-  const ran = await $.tool.call({ tool: 'Bash', command: 'ls', agentId: 'a1' } as never)
-  expect(ran.context ?? []).toEqual([])
+test("a subagent is asked to hand over on its own context's ladder, once per step, never to compact", async ($, on) => {
+  const usage = world(on, { tokens: 420_000 })
+  await step($, usage, 'a1', 100_000)
+  expect(await nudges($, 'a1')).toEqual([])
+  await step($, usage, 'a1', 255_000)
+  await step($, usage, 'a2', 50_000)
+  const [calm] = await nudges($, 'a1')
+  expect(calm).toContain('Context 255k: a lot, not a limit. Two thirds of your task done? Carry on.')
+  expect(calm).toContain('write a hand-over for a fresh agent')
+  expect(calm).not.toContain(COMPACT_ME)
+  expect(await nudges($, 'a1')).toEqual([])
+  expect(await nudges($, 'a2')).toEqual([])
+  await step($, usage, 'a1', 401_000)
+  expect((await nudges($, 'a1'))[0]).toContain('Context 401k. Stop now: write a hand-over')
+  usage.tokens = 100_000
+  expect(await nudges($)).toEqual([])
+})
+
+test('a finished subagent leaves no ladder behind for an agent reusing its id', async ($, on) => {
+  const usage = world(on, { tokens: 100_000 })
+  await step($, usage, 'a1', 255_000)
+  expect(await nudges($, 'a1')).toHaveLength(1)
+  await $.turn.complete({ ...answered(), agentId: 'a1' } as never)
+  expect(await nudges($, 'a1')).toEqual([])
+  await step($, usage, 'a1', 255_000)
+  expect(await nudges($, 'a1')).toHaveLength(1)
 })
 
 const COMPACT_ME = 'mcp__smart-compact__compact_me'
@@ -145,7 +167,7 @@ type World = { tokens: number; window?: number }
 
 function world(on: On, start: World) {
   const clock = mock.clock(on)
-  const state = { window: 1_000_000, ...start, calls: [] as string[], clock, isCompactHeld: false, release: () => {} }
+  const state = { window: 1_000_000, ...start, calls: [] as string[], clock, isCompactHeld: false, release: () => {}, stepTokens: 0 }
   on('session.usage', () => ({ value: { startedAt: 0, context: { tokens: state.tokens, window: state.window }, rateLimits: [] } }))
   on('tool.register', (_, e) => ({ value: { tool: e.name } }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
@@ -160,7 +182,18 @@ function world(on: On, start: World) {
   })
   on('tool.call', () => ({ result: 'ok' }))
   on('turn.complete', () => ({ text: 'done' }))
+  on('turn.step', async function* (_, e) {
+    const read = state.stepTokens - 3_000
+    const usage = { input_tokens: 1_000, cache_read_input_tokens: read, cache_creation_input_tokens: 1_000, output_tokens: 1_000, model: 'm' }
+    return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'tool_use', usage } as never
+  })
   return state
+}
+
+/** One model request of a subagent whose context ends at `tokens`. */
+async function step($: Engine, state: { stepTokens: number }, agentId: string, tokens: number) {
+  state.stepTokens = tokens
+  for await (const _ of $.turn.step({ turnId: 't1', index: 0, model: 'm', messageCount: 1, agentId })) { /* drained */ }
 }
 
 async function queue($: Engine, focus: string) {
@@ -168,8 +201,8 @@ async function queue($: Engine, focus: string) {
   expect(ran.deny).toBeUndefined()
 }
 
-async function nudges($: Engine) {
-  const ran = await $.tool.call({ tool: 'Bash', command: 'ls' } as never)
+async function nudges($: Engine, agentId?: string) {
+  const ran = await $.tool.call({ tool: 'Bash', command: 'ls', agentId } as never)
   return [...(ran.context ?? [])]
 }
 

@@ -1,48 +1,32 @@
 # smart-compact
 
-A Claude Code mod that lets the agent compact its own context at a moment it
-chooses, instead of waiting for the built-in auto-compact to fire in the middle
-of whatever it is doing.
+**TL;DR:** the agent compacts early, between tasks, and the context stays small.
 
-## What it does
+How:
 
-- As the context grows, the agent gets a short note after a tool call: first
-  "between tasks or subtasks, compact", then more insistent, then "compact
-  immediately". Each step is said once; after a compaction the ladder starts over.
-- The agent calls the `compact_me` tool with a focus: a tweet-size instruction
-  for the compactor that names the task it will continue and the finished ones.
-  A focus over 280 characters is refused.
-- When the turn ends, the mod runs `/compact` with that focus and then sends
-  "Context compacted. Continue the task.", so the work goes on without you.
+1. Past a certain size, tool results carry a nudge: between tasks, compact.
+   It gets more insistent as the context grows, each step said once.
+2. The agent calls `compact_me` with a tweet-sized focus for the compactor:
+   the task it continues with, the ones that are done. Not a summary.
+3. When the turn ends, the mod runs `/compact` with that focus and sends
+   "Context compacted. Continue the task." Nobody has to be at the keyboard.
 
-An interrupted turn drops the queued compaction. A subagent cannot compact the
-main session and is never nudged. Once a focus is queued the nudges stop for the
-rest of the turn. If the mod reloads while `/compact` runs, the continue
-message is still sent, once.
+Nudges start at 250k, 300k and 400k tokens in a 1M window, at 60%, 70% and
+80% of a smaller one.
 
-## When it nudges
-
-The steps start at 250k, 300k and 400k tokens, repeating every 25k, 20k and 10k
-tokens past each start. In a window smaller than 1M the starts are capped at 60%,
-70% and 80% of the window and the repeats shrink with them: in a 200k window
-the nudges start at 120k, 140k and 160k, before the built-in auto-compact.
+A subagent cannot be compacted, so on the same steps of its own context it is
+asked to write a hand-over for a fresh agent and finish.
 
 ## Options
 
-Ask the agent, for example "start smart compaction at 150k": the plugin's
-`configure` skill sets the option. Or set them in `/config`, with
-`claude plugin configure smart-compact@alfreds-plugins`, or in settings.json under
-`pluginConfigs["smart-compact@alfreds-plugins"].options`. A running session
-takes new values after `/reload-plugins`.
+- `startAt`: first nudge, in thousands of tokens; the later steps follow in
+  proportion (150 gives 150k, 180k, 240k). 0 is the ladder above.
+- `beforeCompact`: a step the agent takes first, e.g. `run the debrief skill`.
+- `summaryNote`: an instruction the compactor gets every time, e.g. the
+  language of the summary.
 
-- `startAt`: where the nudges start, in thousands of tokens; the later steps
-  keep their proportions, so 150 gives 150k, 180k and 240k, in any window.
-  0 (the default) is the automatic ladder above.
-- `beforeCompact`: a step the agent takes before it compacts, written in lower
-  case to follow "Between tasks or subtasks, ", for example
-  `run the debrief skill`.
-- `summaryNote`: an extra instruction the compactor gets every time, for
-  example the language to write the summary in.
+Ask the agent ("start smart compaction at 150k"), or run
+`claude plugin configure smart-compact@alfreds-plugins`.
 
 ## Install
 
@@ -54,17 +38,9 @@ claude plugin marketplace add zienag/alfreds-plugins
 claude plugin install smart-compact@alfreds-plugins
 ```
 
-To work on it, load the folder instead: `claude --plugin-dir plugins/smart-compact`.
+## Working on it
 
-## Tests
-
-```bash
-claude plugin test plugins/smart-compact
-```
-
-```bash
-tsc -p plugins/smart-compact
-```
-
-The type-check needs `.claude-plugin/types/`, which the engine writes once the
-plugin has loaded in a session (`claude --plugin-dir plugins/smart-compact`).
+`claude --plugin-dir plugins/smart-compact` loads the folder,
+`claude plugin test plugins/smart-compact` runs the tests, and
+[docs/smart-compact.md](../../docs/smart-compact.md) holds the engine facts
+the design rests on.

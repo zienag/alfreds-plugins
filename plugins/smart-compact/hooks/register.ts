@@ -1,6 +1,8 @@
 import type { EngineInterface, Register } from 'claude-code'
 
-import { FOCUS_LIMIT, compactInstructions, decide, levelsFor, nudgeText, resumeText, squash } from './ladder'
+import {
+  FOCUS_LIMIT, compactInstructions, contextTokens, decide, handoverText, levelsFor, nudgeText, resumeText, squash,
+} from './ladder'
 
 const NAME = 'compact_me'
 const TOOL = 'mcp__smart-compact__compact_me'
@@ -14,6 +16,8 @@ export const register: Register = (on, options) => {
   const startAt = Math.max(0, Number(options.startAt ?? 0) || 0) * 1000
   let nudged = 0
   let queued = false
+  const agentTokens = new Map<string, number>()
+  const agentNudged = new Map<string, number>()
 
   on('session.start', async ($, e, next) => {
     await $.tool.register({
@@ -47,21 +51,36 @@ export const register: Register = (on, options) => {
     return { result: 'Queued: the conversation is compacted once this turn ends, and the task continues after it. End the turn now.' }
   }).catch(($, e, next) => (next.called ? next(e) : { deny: `${NAME}: failed, nothing queued.` }))
 
+  on('turn.step', async function* ($, e, next) {
+    const step = yield* next(e)
+    if (e.agentId !== undefined && step.usage !== null) agentTokens.set(e.agentId, contextTokens(step.usage))
+    return step
+  })
+
   on('tool.call', async ($, e, next) => {
     const ran = await next(e)
-    if (e.agentId !== undefined || e.tool === TOOL || ran.deny !== undefined || queued) return ran
-    const { tokens = 0, window } = (await $.session.usage()).context
+    if (e.tool === TOOL || ran.deny !== undefined) return ran
+    const agent = e.agentId
+    if (agent === undefined && queued) return ran
+    const { tokens: mainTokens = 0, window } = (await $.session.usage()).context
     const levels = levelsFor(window, startAt)
-    const [due, remember] = decide(tokens, nudged, levels)
-    const first = nudged === 0
-    nudged = remember
+    const tokens = agent === undefined ? mainTokens : agentTokens.get(agent) ?? 0
+    const was = agent === undefined ? nudged : agentNudged.get(agent) ?? 0
+    const [due, remember] = decide(tokens, was, levels)
+    if (agent === undefined) nudged = remember
+    else agentNudged.set(agent, remember)
     if (due === null) return ran
-    return { ...ran, context: [...(ran.context ?? []), nudgeText(tokens, first, levels, before, TOOL)] }
+    const text = agent === undefined ? nudgeText(tokens, was === 0, levels, before, TOOL) : handoverText(tokens, levels)
+    return { ...ran, context: [...(ran.context ?? []), text] }
   }).catch(($, e, next) => next(e))
 
   on('turn.complete', async ($, e, next) => {
     const done = await next(e)
-    if (e.agentId !== undefined) return done
+    if (e.agentId !== undefined) {
+      agentTokens.delete(e.agentId)
+      agentNudged.delete(e.agentId)
+      return done
+    }
     queued = false
     const { value: planned = null } = await $.state.get(focus)
     if (planned === null) return done

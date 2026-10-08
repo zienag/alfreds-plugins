@@ -47,6 +47,27 @@ export function nudgeText(tokens: number, first: boolean, levels: Levels, before
   return first ? `${text} ${FOCUS_DOC}` : text
 }
 
+const HANDOVER =
+  'write a hand-over for a fresh agent (done, left, next step, dead ends, touched files) to a new file ' +
+  'in the session scratchpad or a temporary directory and end. Open your reply with: the hand-over in <path> ' +
+  'is for the next agent, no need to read it, just give that agent the path instead of resuming me.'
+
+/** The subagent's ladder: nothing compacts a subagent, so it hands its work over instead. */
+export function handoverText(tokens: number, levels: Levels): string {
+  const [, [pressing = 0] = [], [urgent = 0] = []] = levels
+  const size = `Context ${Math.floor(tokens / 1000)}k`
+  if (tokens >= urgent) return `${size}. Stop now: ${HANDOVER}`
+  if (tokens >= pressing) {
+    return `${size}. Three quarters of your task done? Finish it. Less? At the next stopping point ${HANDOVER}`
+  }
+  return `${size}: a lot, not a limit. Two thirds of your task done? Carry on. Less? Finish the piece you are on, then ${HANDOVER}`
+}
+
+/** A request's whole context: what it read, cached or not, and what it wrote. */
+export function contextTokens(usage: { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number }): number {
+  return usage.input_tokens + usage.cache_read_input_tokens + usage.cache_creation_input_tokens + usage.output_tokens
+}
+
 export function squash(text: string): string {
   return text.split(/\s+/).filter(Boolean).join(' ')
 }
