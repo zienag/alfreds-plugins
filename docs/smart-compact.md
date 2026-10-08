@@ -69,6 +69,30 @@ module variable is read and written synchronously after the one `await` on
 usage, so the second call sees the first's write. A reload of the mod starts
 the variable over, which costs at most one repeated nudge at the current step.
 
+## A subagent's window comes from the engine's model catalogue, copied
+
+`$.session.usage().context.window` is the main session's window; no `$` call
+answers the window of another model, and `$.agent.list()` does not name an
+agent's model. What the engine itself does (2.1.293, the function that
+`/context` and auto-compact read, found by its `unknown-model` source string):
+`[1m]` in the model id gives a million; else the model catalogue's
+`context.native_1m` gives a million; else a settings or
+`CLAUDE_CODE_MAX_CONTEXT_TOKENS` value; else 200k. The catalogue is in the
+binary (search `native_1m:!0`): Haiku 5.5, Sonnet 5 and 5.5, Opus 4.7 to 5.5,
+Fable 5 and 5.1, Mythos 5 and 5.1 are native 1M; Haiku 4.5, Sonnet 4.5 and
+4.6, Opus 4.0 to 4.6 and the 3.x line are 200k.
+
+The mod copies that table into `ladder.ts` and reads the model from
+`turn.step`'s `e.model` (the id the request names, `[1m]` tag included; the
+API's `usage.model` drops the tag). Checked headless on the app's 2.1.293
+binary with a probe plugin that logs each step: a subagent spawned with
+`model: haiku` steps with `e.model` `claude-haiku-5-5` and its own `agentId`,
+while `$.session.usage().context.window` inside that step is still the main
+session's million. Precedence: the main session's own model
+gets the main session's window, settings included; a `[1m]` tag a million; a
+catalogued model its catalogue window; an unknown model the main session's
+window. A new model therefore inherits until the table learns it.
+
 ## The continue prompt carries no marker
 
 The engine frames a plugin's prompt for the model as "The smart-compact plugin

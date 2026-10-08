@@ -31,8 +31,9 @@ task." Nobody has to be at the keyboard.
 
 A subagent has no auto-compact at all, and the main agent can hand the same
 subagent task after task while its context grows unwatched. So on the same
-steps of its own context a subagent is asked to finish at a good point and
-return to its parent either the finished work or a hand-over for a fresh agent.
+steps of its own context, against its own model's window, a subagent is asked
+to finish at a good point and return to its parent either the finished work or
+a hand-over for a fresh agent.
 
 Nudges start at 250k, 300k and 400k tokens in a 1M window, at 60%, 70% and
 80% of a smaller one.
