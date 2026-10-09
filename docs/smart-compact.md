@@ -22,6 +22,28 @@ The stream (`--output-format stream-json`) does not show hook context or a
 plugin's prompt; the session's transcript file under `~/.claude/projects/`
 does.
 
+## How 0.2.6 was checked end to end
+
+The same headless run of the app's 2.1.293 binary, on `claude-opus-5-5`,
+`--plugin-dir plugins/smart-compact` and `--settings` with `startAt` 10 (a
+number: a string makes the module refuse to load) and `beforeCompact` "say the
+word DEBRIEF". The prompt gave two tasks in order: two parallel Bash calls with
+a one-line report, then counting to three. Read from the transcript file:
+
+- The reminder came with the tool results: "Context 24k > 16k. Compact now, as
+  the first step of whatever work is in front of you. First say the word
+  DEBRIEF, then call `mcp__smart-compact__compact_me`; the work begins after
+  the compaction."
+- The model finished task 1, said DEBRIEF, called `compact_me` with the focus
+  "Task 1 (ls/pwd, report entry count) is done and reported. Continue with task
+  2: count from 1 to 3", and ended the turn with "After the compaction I'll do
+  task 2". `/compact` ran (27.5k to 4.4k tokens), the continue prompt came,
+  and the model counted to three.
+
+A prompt asking the model to quote verbatim the extra text after tool results
+ends the run with a safety refusal (`reasoning_extraction`); read the
+transcript file instead.
+
 ## The compaction runs as `/compact`, not `$.session.compact`
 
 The desktop app runs its sessions headless (the SDK path), and there
