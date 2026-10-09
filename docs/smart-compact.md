@@ -95,6 +95,17 @@ A user-set compaction window (`/autocompact`, `autoCompactWindow`,
 `CLAUDE_CODE_AUTO_COMPACT_WINDOW`) is `breakdown.rawMaxTokens` from
 `$.session.usage({ breakdown })`, not `context.window`.
 
+## After `/compact` the model sees the summary alone
+
+The transcript of a compacted session (the app, 2.1.293) holds the
+`compact_boundary` record, the summary message (`isCompactSummary`), the
+`/compact` command record and then the mod's continue prompt: no earlier
+message is kept verbatim. The `preservedSegment` in `compactMetadata` is a
+range of transcript uuids, a pointer for the transcript viewer. So a question
+the agent asked right before a compaction is answered from the summary, and
+the compaction must come before a piece of work, with the piece named in the
+focus.
+
 ## The continue prompt carries no marker
 
 The engine frames a plugin's prompt for the model as "The smart-compact plugin

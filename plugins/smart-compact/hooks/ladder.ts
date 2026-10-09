@@ -8,10 +8,10 @@ const LADDER = [
 ] as const
 export const FOCUS_LIMIT = 280
 
-const FOCUS_DOC =
-  'The focus is a tweet-size extra instruction for the compactor, so it understands your intent: ' +
+export const FOCUS_DOC =
+  `A tweet-size instruction for the compactor, up to ${FOCUS_LIMIT} characters, so it understands your intent: ` +
   'which task you will continue. A summary or a retelling of key numbers and facts is FORBIDDEN here. ' +
-  'For example: focus "focus on the auth bug fix; the deploy is finished".'
+  'Example: "focus on the auth bug fix; the deploy is finished".'
 
 /** startAt (tokens) moves the whole ladder in proportion to its first start, whatever the window; 0 is automatic. */
 export function levelsFor(window: number, startAt = 0): Levels {
@@ -35,16 +35,28 @@ export function decide(tokens: number, nudged: number, levels: Levels): [number 
   return [level > nudged ? level : null, level]
 }
 
-export function nudgeText(tokens: number, first: boolean, levels: Levels, before: string, tool: string): string {
+export function toolDescription(before: string): string {
+  return (
+    'Compacts the conversation once this turn ends, with `focus` as an instruction to the compactor, ' +
+    'then tells you to continue the task. ' +
+    'A compaction is the first step of a piece of work. Call this when the context reminder has come and ' +
+    'a piece of work lies ahead of you, before you touch it: the next subtask of a long job, or the task ' +
+    'the user has just handed you. Then end the turn with one line saying what follows; the piece begins ' +
+    `after the compaction.${before ? ` Before calling it, ${before}.` : ''}`
+  )
+}
+
+export function nudgeText(tokens: number, levels: Levels, before: string, tool: string): string {
   const [[calm = 0] = [], [pressing = 0] = [], [urgent = 0] = []] = levels
-  const how = `${before ? `${before}, then ` : ''}call the tool \`${tool}\` with a focus and end the turn.`
+  const how = before ? `First ${before}, then call \`${tool}\`` : `Call \`${tool}\``
   const k = (n: number) => Math.floor(n / 1000)
-  let text
-  if (tokens >= urgent) text = `Context ${k(tokens)}k > ${k(urgent)}k. Compact immediately: ${how}`
-  else if (tokens >= pressing) {
-    text = `Context ${k(tokens)}k > ${k(pressing)}k. Strongly advised to compact already: at the next gap between subtasks, ${how}`
-  } else text = `Context ${k(tokens)}k > ${k(calm)}k. Between tasks or subtasks, ${how}`
-  return first ? `${text} ${FOCUS_DOC}` : text
+  if (tokens >= urgent) {
+    return `Context ${k(tokens)}k > ${k(urgent)}k. Compact now, as the first step of whatever work is in front of you. ${how}; the work begins after the compaction.`
+  }
+  if (tokens >= pressing) {
+    return `Context ${k(tokens)}k > ${k(pressing)}k. Strongly advised: compact as the first step of the very next subtask, as soon as it is in front of you. ${how}; the subtask begins after the compaction.`
+  }
+  return `Context ${k(tokens)}k > ${k(calm)}k. Compact as the first step of the next piece of work, once that piece is in front of you: a subtask you are about to start, or a task the user has just given. ${how}; the piece begins after the compaction.`
 }
 
 const HANDOVER =
@@ -78,5 +90,5 @@ export function compactInstructions(focus: string, before: string, note: string)
 }
 
 export function resumeText(): string {
-  return 'Context compacted. Continue the task. If the turn before ended with a question to the user, wait for the answer instead.'
+  return 'Context compacted. Continue the task.'
 }

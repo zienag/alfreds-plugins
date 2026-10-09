@@ -2,7 +2,7 @@ import type { On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
-const RESUME = 'Continue the task. If the turn before ended with a question to the user, wait for the answer instead.'
+const RESUME = 'Context compacted. Continue the task.'
 
 test('a queued focus compacts after the answer, then the task continues', async ($, on) => {
   const { calls, clock } = world(on, { tokens: 100_000 })
@@ -12,16 +12,21 @@ test('a queued focus compacts after the answer, then the task continues', async 
   await clock.settle()
   expect(calls).toEqual([
     'compact: focus on the auth bug fix; the deploy is finished Omit the compaction routine itself: context nudges, compact_me.',
-    `submit: Context compacted. ${RESUME}`,
+    `submit: ${RESUME}`,
   ])
 })
 
-test('the configured step and note reach the nudge and the compactor', {
+test('the configured step and note reach the tool description, the nudge and the compactor', {
   options: { beforeCompact: 'run the debrief skill', summaryNote: 'Write the summary in English.' },
 }, async ($, on) => {
-  const { calls, clock } = world(on, { tokens: 255_000 })
+  const state = world(on, { tokens: 255_000 })
+  const { calls, clock } = state
+  await $.session.start({ cwd: '/tmp', surface: null, isInteractive: false })
+  expect(state.registered?.description).toContain('A compaction is the first step of a piece of work.')
+  expect(state.registered?.description).toContain('Before calling it, run the debrief skill.')
+  expect(state.registered?.focus).toContain('FORBIDDEN')
   const [nudge] = await nudges($)
-  expect(nudge).toContain('Between tasks or subtasks, run the debrief skill, then call the tool')
+  expect(nudge).toContain('First run the debrief skill, then call `mcp__smart-compact__compact_me`; the piece begins after the compaction.')
   await queue($, 'focus on the parser')
   await $.turn.complete(answered())
   await clock.settle()
@@ -39,7 +44,7 @@ test('a reload of the mod while /compact runs still continues the task, once', a
   await held.clock.settle()
   expect(held.calls).toHaveLength(1)
   await $.session.start({ cwd: '/tmp', surface: null, isInteractive: false })
-  expect(held.calls[1]).toEqual(`submit: Context compacted. ${RESUME}`)
+  expect(held.calls[1]).toEqual(`submit: ${RESUME}`)
   held.release()
   await held.clock.settle()
   expect(held.calls).toHaveLength(2)
@@ -76,23 +81,23 @@ test('a subagent cannot queue a compaction of the main session', async ($, on) =
   expect(ran.deny).toContain('only the main session compacts')
 })
 
-test('the nudge comes once per ladder step, explains the focus only the first time, and re-arms after the size fell', async ($, on) => {
+test('the nudge comes once per ladder step, grows more pressing, and re-arms after the size fell', async ($, on) => {
   const usage = world(on, { tokens: 240_000 })
   expect(await nudges($)).toEqual([])
   usage.tokens = 255_000
   const [first] = await nudges($)
-  expect(first).toContain('Context 255k > 250k. Between tasks or subtasks, call the tool')
-  expect(first).toContain('A summary or a retelling')
+  expect(first).toContain('Context 255k > 250k. Compact as the first step of the next piece of work, once that piece is in front of you')
+  expect(first).toContain('Call `mcp__smart-compact__compact_me`; the piece begins after the compaction.')
   usage.tokens = 270_000
   expect(await nudges($)).toEqual([])
   usage.tokens = 310_000
-  const [second] = await nudges($)
-  expect(second).toContain('Context 310k > 300k. Strongly advised')
-  expect(second).not.toContain('A summary or a retelling')
+  expect((await nudges($))[0]).toContain('Context 310k > 300k. Strongly advised: compact as the first step of the very next subtask')
+  usage.tokens = 410_000
+  expect((await nudges($))[0]).toContain('Context 410k > 400k. Compact now, as the first step of whatever work is in front of you')
   usage.tokens = 40_000
   expect(await nudges($)).toEqual([])
   usage.tokens = 251_000
-  expect((await nudges($))[0]).toContain('A summary or a retelling')
+  expect((await nudges($))[0]).toContain('Context 251k > 250k.')
 })
 
 test('parallel tool calls past a step are nudged once between them', async ($, on) => {
@@ -117,9 +122,9 @@ test('a 200k window is nudged from 60% of it, before the built-in auto-compact',
   const usage = world(on, { tokens: 110_000, window: 200_000 })
   expect(await nudges($)).toEqual([])
   usage.tokens = 121_000
-  expect((await nudges($))[0]).toContain('Context 121k > 120k. Between tasks')
+  expect((await nudges($))[0]).toContain('Context 121k > 120k. Compact as the first step')
   usage.tokens = 161_000
-  expect((await nudges($))[0]).toContain('Context 161k > 160k. Compact immediately')
+  expect((await nudges($))[0]).toContain('Context 161k > 160k. Compact now')
 })
 
 test('startAt moves the whole ladder in proportion, past the 200k window cap', {
@@ -128,7 +133,7 @@ test('startAt moves the whole ladder in proportion, past the 200k window cap', {
   const usage = world(on, { tokens: 140_000, window: 200_000 })
   expect(await nudges($)).toEqual([])
   usage.tokens = 151_000
-  expect((await nudges($))[0]).toContain('Context 151k > 150k. Between tasks')
+  expect((await nudges($))[0]).toContain('Context 151k > 150k. Compact as the first step')
   usage.tokens = 181_000
   expect((await nudges($))[0]).toContain('Context 181k > 180k. Strongly advised')
 })
@@ -167,9 +172,16 @@ type World = { tokens: number; window?: number }
 
 function world(on: On, start: World) {
   const clock = mock.clock(on)
-  const state = { window: 1_000_000, ...start, calls: [] as string[], clock, isCompactHeld: false, release: () => {}, stepTokens: 0 }
+  const state = {
+    window: 1_000_000, ...start, calls: [] as string[], clock, isCompactHeld: false, release: () => {}, stepTokens: 0,
+    registered: null as { description: string; focus: string } | null,
+  }
   on('session.usage', () => ({ value: { startedAt: 0, context: { tokens: state.tokens, window: state.window }, rateLimits: [] } }))
-  on('tool.register', (_, e) => ({ value: { tool: e.name } }))
+  on('tool.register', (_, e) => {
+    const schema = e.inputSchema as { properties?: { focus?: { description?: string } } }
+    state.registered = { description: e.description, focus: schema.properties?.focus?.description ?? '' }
+    return { value: { tool: e.name } }
+  })
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('command.run', (_, e) => {
     state.calls.push(`${e.command}: ${e.args}`)

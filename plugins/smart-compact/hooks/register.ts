@@ -1,7 +1,8 @@
 import type { EngineInterface, Register } from 'claude-code'
 
 import {
-  FOCUS_LIMIT, compactInstructions, contextTokens, decide, handoverText, levelsFor, nudgeText, resumeText, squash,
+  FOCUS_DOC, FOCUS_LIMIT, compactInstructions, contextTokens, decide, handoverText, levelsFor, nudgeText, resumeText, squash,
+  toolDescription,
 } from './ladder'
 
 const NAME = 'compact_me'
@@ -21,14 +22,10 @@ export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     await $.tool.register({
       name: NAME,
-      description:
-        'Compact this conversation once the current turn ends, then carry on with the task. ' +
-        'Call it as the last action of a turn, then end the turn. ' +
-        `focus: a tweet-size instruction (up to ${FOCUS_LIMIT} characters) for the compactor ` +
-        'naming the task the work continues with and the finished ones; never a summary.',
+      description: toolDescription(before),
       inputSchema: {
         type: 'object',
-        properties: { focus: { type: 'string', description: 'What the summary should keep in detail' } },
+        properties: { focus: { type: 'string', description: FOCUS_DOC } },
         required: ['focus'],
       },
       isDeferred: false,
@@ -47,7 +44,7 @@ export const register: Register = (on, options) => {
     }
     await $.state.set(focus, text)
     queued = true
-    return { result: 'Queued: the conversation is compacted once this turn ends, and the task continues after it. End the turn now.' }
+    return { result: 'Queued: the conversation is compacted once this turn ends, and the task continues after it. End the turn now, with one line saying what follows.' }
   }).catch(($, e, next) => (next.called ? next(e) : { deny: `${NAME}: failed, nothing queued.` }))
 
   on('turn.step', async function* ($, e, next) {
@@ -67,10 +64,9 @@ export const register: Register = (on, options) => {
     const levels = levelsFor(window, startAt)
     if (agent === undefined) {
       const [due, remember] = decide(mainTokens, nudged, levels)
-      const first = nudged === 0
       nudged = remember
       if (due === null) return ran
-      return { ...ran, context: [...(ran.context ?? []), nudgeText(mainTokens, first, levels, before, TOOL)] }
+      return { ...ran, context: [...(ran.context ?? []), nudgeText(mainTokens, levels, before, TOOL)] }
     }
     const who = agents.get(agent)
     if (who === undefined) return ran

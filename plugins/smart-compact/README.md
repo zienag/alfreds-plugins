@@ -22,12 +22,13 @@ so the work can come out broken. A lower limit does not help: for some tasks
 the right call is to go on a little and finish, then compact. A hard line is
 the wrong tool.
 
-This mod asks instead. Past a certain size, tool results carry a nudge to
-compact between tasks, more insistent as the context grows, each step said
-once. The agent calls `compact_me` with a tweet-sized focus for the compactor
-(the task it continues with, the ones that are done) and ends the turn. The
-mod runs `/compact` with that focus and sends "Context compacted. Continue the
-task." Nobody has to be at the keyboard.
+This mod asks instead. A compaction is the first step of a piece of work: the
+next subtask of a long job, or the task the user has just handed over. Past a
+certain size, tool results carry a reminder to compact that way, more insistent
+as the context grows, each step said once. The agent calls `compact_me` with a
+tweet-sized focus for the compactor (the task it continues with, the ones that
+are done) and ends the turn. The mod runs `/compact` with that focus and sends
+"Context compacted. Continue the task." Nobody has to be at the keyboard.
 
 A subagent has no auto-compact at all, and the main agent can hand the same
 subagent task after task while its context grows unwatched. So on the same

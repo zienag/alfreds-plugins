@@ -20,7 +20,8 @@ claude plugin configure smart-compact@alfreds-plugins --json
   a smaller one. A set value is not capped by the window: steps the window
   never reaches stay silent, and the built-in auto-compact fires instead.
 - `beforeCompact`: a step the agent takes before compacting, in lower case,
-  since it follows "Between tasks or subtasks, ". Example: `run the debrief skill`.
+  since it follows "First " and "Before calling it, ". Example:
+  `run the debrief skill`.
 - `summaryNote`: an instruction the compactor gets every time, such as the
   language of the summary.
 
