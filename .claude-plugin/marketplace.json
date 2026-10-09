@@ -14,7 +14,7 @@
       "name": "crew",
       "source": "./plugins/crew",
       "description": "Subagents in three tiers, split by who makes the decisions, a teamlead for a whole slice, and the orchestrator skill that runs a session through them",
-      "version": "0.1.0"
+      "version": "0.1.1"
     }
   ]
 }
