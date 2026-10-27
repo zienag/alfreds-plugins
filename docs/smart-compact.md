@@ -98,7 +98,27 @@ module variable is read and written synchronously after the one `await` on
 usage, so the second call sees the first's write. A reload of the mod starts
 the variable over, which costs at most one repeated nudge at the current step.
 
-## A subagent is measured against the main session's window
+## A subagent auto-compacts
+
+Claude Code compacts a subagent's context by itself, and the subagent goes on
+with its task. The app's subagent transcripts on one account
+(`~/.claude/projects/<project>/<session>/subagents/agent-*.jsonl`) hold 34
+`compact_boundary` records in 14 agents, all with trigger `auto`: at about
+367k tokens on builds 2.1.219 to 2.1.246, and at about 968k on 2.1.280 and
+2.1.308, with `autoCompactWindow` 1000000 in the user settings. Every agent
+kept working after it, from 40k to 75k of context. So the mod nudges the main
+session alone; 0.2.2 to 0.2.7 sent a subagent a hand-over ladder on the
+belief that nothing compacts it.
+
+Those notes were advice, never a deny, and subagents acted on them. In the
+same transcripts, of 432 subagents after the mod was installed, 245 got a
+note, and 99 handed back a report that opens with the note's own words, "The
+hand-over in <path> is for the next agent", 3 to 50 requests after it. A
+subagent's report is the `message` of its `SubagentHandback` tool call, not a
+closing text. Of the subagents that passed 250k, 82 of 111 went on past 300k
+before the install and 17 of 246 after it.
+
+## A mod cannot tell a subagent's window
 
 No `$` call answers the window of another model: `$.session.usage()` is the
 main session's, inside a subagent's step too (checked headless on the app's
@@ -116,9 +136,8 @@ is read nowhere a plugin can reach). Probed on this account, `--model` per
 run: `claude-opus-5`, `claude-opus-5[1m]`, Opus 5.5, Sonnet 5.5, Haiku 5.5 and
 Opus 4.8 report `window` 1,000,000 with source `model-default`; Sonnet 4.6
 reports 200,000; `claude-sonnet-4-6[1m]` reports 200,000 and the request
-fails with a 429 `long_context_credits_required`. So the subagent ladder uses
-the main session's window, and a subagent on a smaller model than the main
-session's is the one case it gets wrong.
+fails with a 429 `long_context_credits_required`. The subagent ladder of 0.2.5
+to 0.2.7 used the main session's window for that reason.
 
 A user-set compaction window (`/autocompact`, `autoCompactWindow`,
 `CLAUDE_CODE_AUTO_COMPACT_WINDOW`) is `breakdown.rawMaxTokens` from

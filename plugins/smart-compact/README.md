@@ -30,10 +30,8 @@ tweet-sized focus for the compactor (the task it continues with, the ones that
 are done) and ends the turn. The mod runs `/compact` with that focus and sends
 "Context compacted. Continue the task." Nobody has to be at the keyboard.
 
-A subagent has no auto-compact at all, and the main agent can hand the same
-subagent task after task while its context grows unwatched. So on the same
-steps of its own context a subagent is asked to finish at a good point and
-return to its parent either the finished work or a hand-over for a fresh agent.
+A subagent hears nothing: Claude Code auto-compacts a subagent's context by
+itself, and the subagent carries on with its task.
 
 Nudges start at 250k, 300k and 400k tokens in a 1M window, at 60%, 70% and
 80% of a smaller one.

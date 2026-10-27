@@ -147,32 +147,13 @@ test('startAt moves the whole ladder in proportion, past the 200k window cap', {
   expect((await nudges($))[0]).toContain('Context 181k > 180k. Strongly advised')
 })
 
-test("a subagent is asked to hand over on its own context's ladder, once per step, never to compact", async ($, on) => {
+test('a subagent hears nothing at any size, since Claude Code compacts it; the main session is still nudged', async ($, on) => {
   const usage = world(on, { tokens: 420_000 })
-  await step($, usage, 'a1', 100_000)
-  expect(await nudges($, 'a1')).toEqual([])
-  await step($, usage, 'a1', 255_000)
-  await step($, usage, 'a2', 50_000)
-  const [calm] = await nudges($, 'a1')
-  expect(calm).toContain('Context 255k: a lot, not a limit. Two thirds of your task done? Carry on.')
-  expect(calm).toContain('write a hand-over for a fresh agent')
-  expect(calm).not.toContain(COMPACT_ME)
-  expect(await nudges($, 'a1')).toEqual([])
-  expect(await nudges($, 'a2')).toEqual([])
   await step($, usage, 'a1', 401_000)
-  expect((await nudges($, 'a1'))[0]).toContain('Context 401k. Stop now: write a hand-over')
-  usage.tokens = 100_000
-  expect(await nudges($)).toEqual([])
-})
-
-test('a finished subagent leaves no ladder behind for an agent reusing its id', async ($, on) => {
-  const usage = world(on, { tokens: 100_000 })
-  await step($, usage, 'a1', 255_000)
-  expect(await nudges($, 'a1')).toHaveLength(1)
-  await $.turn.complete({ ...answered(), agentId: 'a1' } as never)
   expect(await nudges($, 'a1')).toEqual([])
-  await step($, usage, 'a1', 255_000)
-  expect(await nudges($, 'a1')).toHaveLength(1)
+  await step($, usage, 'a1', 900_000)
+  expect(await nudges($, 'a1')).toEqual([])
+  expect((await nudges($))[0]).toContain('Context 420k > 400k. Compact now')
 })
 
 const COMPACT_ME = 'mcp__smart-compact__compact_me'
