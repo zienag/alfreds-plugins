@@ -10,6 +10,7 @@ const TOOL = 'mcp__smart-compact__compact_me'
 
 const focus = { plugin: 'smart-compact', key: 'focus' } as const
 const resuming = { plugin: 'smart-compact', key: 'resuming' } as const
+const LOG_LINES = 500
 
 export const register: Register = (on, options) => {
   const before = String(options.beforeCompact ?? '').trim()
@@ -87,7 +88,7 @@ export const register: Register = (on, options) => {
     if (planned === null) return done
     await $.state.set(focus, null)
     if (e.reason !== 'answer') {
-      $.ui.toast('smart-compact: the turn was interrupted, the queued compaction dropped')
+      await warn($, 'the turn was interrupted, the queued compaction dropped')
       return done
     }
     await $.state.set(resuming, resumeText())
@@ -113,10 +114,26 @@ async function compact($: EngineInterface, instructions: string): Promise<void> 
     await $.command.run({ command: 'compact', args: instructions })
   } catch (error) {
     await $.state.set(resuming, null)
-    $.ui.toast(`smart-compact: /compact failed: ${String(error)}`)
+    await warn($, `/compact failed: ${String(error)}`)
     return
   }
   await resume($)
+}
+
+/** A toast vanishes in seconds, so the same line also goes to ~/.claude/logs/smart-compact.log, newest last. */
+async function warn($: EngineInterface, text: string): Promise<void> {
+  $.ui.toast(`smart-compact: ${text}`)
+  try {
+    const home = (await $.env.get('HOME')) ?? (await $.env.get('USERPROFILE'))
+    if (home === undefined) return
+    const path = `${home}/.claude/logs/smart-compact.log`
+    const old = await $.fs.read(path).then(String, () => '')
+    const line = `${new Date(await $.clock.now()).toISOString()} ${await $.session.id()} ${text.replace(/\s+/g, ' ')}`
+    const kept = [...old.split('\n').filter(l => l !== ''), line].slice(-LOG_LINES)
+    await $.fs.write(path, `${kept.join('\n')}\n`)
+  } catch {
+    // the toast already showed it; a log that cannot be written must not break the compaction path
+  }
 }
 
 /** Submits the planned continue prompt once; a reload of the mod during /compact submits it from session.start. */

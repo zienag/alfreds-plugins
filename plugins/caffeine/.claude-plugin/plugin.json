@@ -1,6 +1,6 @@
 {
   "name": "caffeine",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Things that keep agents from falling asleep: reminders of every shell left in the background, and a foreground subagent held from ending its turn while a command the engine would kill with it still runs",
   "author": { "name": "Alfred Zien" },
   "types": "./types/index.d.ts",
@@ -8,8 +8,8 @@
     "marks": {
       "type": "string",
       "title": "Reminders at, minutes of run time",
-      "description": "When the reminders come, in minutes since the command started, e.g. \"2 5 10 30 60 120\"; the first one that is already past goes into the tool result that moved the shell to the background",
-      "default": "2 5 10 30 60 120"
+      "description": "When the reminders come, in minutes since the command started, e.g. \"3 5 10 30 60 120\"; the first one that is already past goes into the tool result that moved the shell to the background",
+      "default": "3 5 10 30 60 120"
     },
     "every": {
       "type": "number",

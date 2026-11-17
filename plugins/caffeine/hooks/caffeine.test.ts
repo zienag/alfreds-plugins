@@ -11,19 +11,19 @@ test('a backgrounded shell gets its first reminder in the result, then the rest 
   await mainTurn($)
   const ran = await background($, 'b1', 'arc diff a b')
   expect(ran.context?.[0]).toContain('Background task b1 is yours: `arc diff a b`. Nobody else watches it.')
-  expect(ran.context?.[0]).toContain('reminded at 5, 10, 30, 60 and 120 minutes of run time, then every 120 minutes')
+  expect(ran.context?.[0]).toContain('reminded at 3, 5, 10, 30, 60 and 120 minutes of run time, then every 120 minutes')
   w.files['/t/b1.output'] = { size: 30, mtimeMs: w.clock.now(), text: 'line one\nline two\n' }
-  await w.clock.advance(2 * MINUTE)
+  await w.clock.advance(MINUTE - 1)
   expect(w.rows()).toEqual([])
-  await w.clock.advance(MINUTE)
+  await w.clock.advance(1)
   const [first] = w.rows()
-  expect(first?.text).toContain('Reminder: background task b1 (`arc diff a b`) has run for 5 minutes.')
-  expect(first?.text).toContain('Its output last changed 3 minutes ago, 30 bytes in all; its last lines:\n  line one\n  line two')
-  expect(first?.text).toContain('Is it still needed? If not, stop it: TaskStop b1. If it is, carry on; the next reminder comes in 5 minutes.')
+  expect(first?.text).toContain('Reminder: background task b1 (`arc diff a b`) has run for 3 minutes.')
+  expect(first?.text).toContain('Its output last changed 1 minute ago, 30 bytes in all; its last lines:\n  line one\n  line two')
+  expect(first?.text).toContain('Is it still needed? If not, stop it: TaskStop b1. If it is, carry on; the next reminder comes in 2 minutes.')
   expect(first?.agentId).toBeUndefined()
   await w.clock.advance(6 * HOUR)
   expect(w.rows().map(r => /has run for ([^.]+)\./.exec(r.text)?.[1])).toEqual([
-    '5 minutes', '10 minutes', '30 minutes', '1 hour', '2 hours', '4 hours', '6 hours',
+    '3 minutes', '5 minutes', '10 minutes', '30 minutes', '1 hour', '2 hours', '4 hours', '6 hours',
   ])
   expect(w.prompts).toEqual([])
 })
@@ -43,7 +43,7 @@ test('the completion notification ends the reminders', async ($, on) => {
   await $.session.start(started())
   await mainTurn($)
   await background($, 'b1', 'sleep 200')
-  await w.clock.advance(5 * MINUTE)
+  await w.clock.advance(MINUTE)
   expect(w.rows()).toHaveLength(1)
   await $.prompt.submit({
     text: '<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>\n<summary>Background command done</summary>\n</task-notification>',
@@ -69,13 +69,13 @@ test('an idle session is woken with the reminder as a prompt and a toast; a runn
   await mainTurn($)
   await background($, 'b1', 'sleep 200')
   await $.turn.complete(answered())
-  await w.clock.advance(5 * MINUTE)
+  await w.clock.advance(MINUTE)
   expect(w.rows()).toEqual([])
   expect(w.prompts).toHaveLength(1)
-  expect(w.prompts[0]).toContain('Reminder: background task b1 (`sleep 200`) has run for 5 minutes. No output file was found.')
-  expect(w.toasts).toEqual(['caffeine: b1 has run for 5 minutes; the agent is reminded'])
+  expect(w.prompts[0]).toContain('Reminder: background task b1 (`sleep 200`) has run for 3 minutes. No output file was found.')
+  expect(w.toasts).toEqual(['caffeine: b1 has run for 3 minutes; the agent is reminded'])
   await mainTurn($)
-  await w.clock.advance(5 * MINUTE)
+  await w.clock.advance(2 * MINUTE)
   expect(w.prompts).toHaveLength(1)
   expect(w.rows()).toHaveLength(1)
 })
@@ -85,17 +85,17 @@ test("a background subagent's shell is reminded in its loop, and after the loop 
   await $.session.start(started())
   await mainTurn($)
   await background($, 'b1', 'sleep 900', { agentId: 'a1' })
-  await w.clock.advance(5 * MINUTE)
+  await w.clock.advance(MINUTE)
   expect(w.rows().map(r => r.agentId)).toEqual(['a1'])
   await $.turn.complete({ ...answered(), agentId: 'a1' } as never)
   expect(w.rows()).toHaveLength(1)
-  await w.clock.advance(5 * MINUTE)
+  await w.clock.advance(2 * MINUTE)
   expect(w.rows().map(r => r.agentId)).toEqual(['a1', 'a1'])
   w.gone.add('a1')
-  await w.clock.advance(20 * MINUTE)
+  await w.clock.advance(5 * MINUTE)
   const [, , later] = w.rows()
   expect(later?.agentId).toBeUndefined()
-  expect(later?.text).toContain('has run for 30 minutes. It was started by subagent a1, which has ended.')
+  expect(later?.text).toContain('has run for 10 minutes. It was started by subagent a1, which has ended.')
 })
 
 test("a subagent's shell that ends with the subagent is dropped when the subagent ends", async ($, on) => {
@@ -114,11 +114,11 @@ test("a reminder refused by a subagent's gone loop goes to the main conversation
   await mainTurn($)
   await background($, 'b1', 'sleep 900', { agentId: 'a1' })
   w.gone.add('a1')
-  await w.clock.advance(5 * MINUTE)
+  await w.clock.advance(MINUTE)
   const [row] = w.rows()
   expect(row?.agentId).toBeUndefined()
   expect(row?.text).toContain('It was started by subagent a1, which has ended.')
-  await w.clock.advance(5 * MINUTE)
+  await w.clock.advance(2 * MINUTE)
   expect(w.rows()).toHaveLength(2)
 })
 
@@ -128,8 +128,8 @@ test('an output too large to read is reported by size and age, without a tail', 
   await mainTurn($)
   await background($, 'b1', 'yes')
   w.files['/t/b1.output'] = { size: 5 * 1024 * 1024, mtimeMs: w.clock.now(), text: 'never read' }
-  await w.clock.advance(5 * MINUTE)
-  expect(w.rows()[0]?.text).toContain('Its output last changed 3 minutes ago, 5.0 MB in all.\nIs it still needed?')
+  await w.clock.advance(MINUTE)
+  expect(w.rows()[0]?.text).toContain('Its output last changed 1 minute ago, 5.0 MB in all.\nIs it still needed?')
   expect(w.reads).toEqual([])
 })
 
@@ -138,7 +138,7 @@ test('two shells backgrounded in parallel are both tracked', async ($, on) => {
   await $.session.start(started())
   await mainTurn($)
   await Promise.all([background($, 'b1', 'sleep 300'), background($, 'b2', 'sleep 400')])
-  await w.clock.advance(5 * MINUTE)
+  await w.clock.advance(MINUTE)
   expect(w.rows().map(r => /task (\w+) /.exec(r.text)?.[1]).sort()).toEqual(['b1', 'b2'])
 })
 
@@ -205,6 +205,17 @@ test("a shell whose output ends with the exit line is no reason to hold, and a b
   w.files['/t/b1.output'] = done
   w.files['/t/b2.output'] = done
   expect((await stopping($, 'a1')).block).toBeUndefined()
+  await $.turn.complete({ ...answered(), agentId: 'a1' } as never)
+  await w.clock.advance(3 * HOUR)
+  expect(w.rows()).toEqual([])
+})
+
+test("a background subagent's shell the engine killed when the subagent ended is not handed over", async ($, on) => {
+  const w = world(on)
+  await $.session.start(started())
+  await mainTurn($)
+  await background($, 'b1', 'sleep 25', { agentId: 'a1' })
+  w.files['/t/b1.output'] = { size: 10, mtimeMs: w.clock.now(), text: '[killed]\n' }
   await $.turn.complete({ ...answered(), agentId: 'a1' } as never)
   await w.clock.advance(3 * HOUR)
   expect(w.rows()).toEqual([])

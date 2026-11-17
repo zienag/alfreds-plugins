@@ -68,7 +68,7 @@ caffeine in its managed settings.
 ## Reminder options
 
 - `marks`: when the reminders come, in minutes since the command started,
-  e.g. `2 5 10 30 60 120`. A mark already past when the shell goes to the
+  e.g. `3 5 10 30 60 120`. A mark already past when the shell goes to the
   background is the note in that tool result.
 - `every`: how often the reminders go on after the last mark, in minutes.
 

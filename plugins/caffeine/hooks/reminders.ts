@@ -1,7 +1,7 @@
 import type { Task } from '../types'
 
 export const MINUTE = 60_000
-export const MARKS = [2, 5, 10, 30, 60, 120]
+export const MARKS = [3, 5, 10, 30, 60, 120]
 export const EVERY = 120
 const TAIL_LINES = 5
 const LINE_WIDTH = 160
@@ -12,7 +12,7 @@ export type Schedule = { marks: number[]; every: number }
 /** What an output file says: `done` when the engine wrote its exit line, so the command has ended. */
 export type Output = { size: number; mtimeMs: number; tail: string[]; done: boolean }
 
-/** The schedule from the options: `marks` as "2 5 10 30 60 120" in minutes of run time, `every` in minutes; the defaults where a value does not parse. */
+/** The schedule from the options: `marks` as "3 5 10 30 60 120" in minutes of run time, `every` in minutes; the defaults where a value does not parse. */
 export function schedule(marks: unknown, every: unknown): Schedule {
   const parsed = [...new Set(String(marks ?? '').split(/[\s,]+/).map(Number).filter(n => Number.isFinite(n) && n > 0))].sort((a, b) => a - b)
   const period = Number(every)
@@ -72,9 +72,13 @@ export function taskId(text: string): string | null {
   return /<task-id>([^<\s]+)<\/task-id>/.exec(text)?.[1] ?? null
 }
 
-/** Whether an output ends with the exit line the engine writes when the command ends. */
+/**
+ * Whether an output ends with a line the engine writes when the command ends: the exit line, or `[killed]` when it
+ * killed the shell itself, as it does to a subagent's shells when the subagent ends.
+ */
 export function hasExited(text: string): boolean {
-  return text.slice(-200).includes('[exited with code')
+  const end = text.slice(-200)
+  return end.includes('[exited with code') || end.trimEnd().endsWith('[killed]')
 }
 
 /** The last non-empty lines of an output, each cut to a line's width. */

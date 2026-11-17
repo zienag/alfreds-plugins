@@ -60,6 +60,23 @@ test('an interrupted turn drops the queued compaction', async ($, on) => {
   expect(calls).toEqual([])
 })
 
+test('a failed /compact is shown and also kept in the log, after what the log already held', async ($, on) => {
+  const state = world(on, { tokens: 100_000 })
+  state.compactError = new Error('Not enough messages\nto compact')
+  state.files['/home/a/.claude/logs/smart-compact.log'] = 'earlier line\n'
+  await queue($, 'focus on the parser')
+  await $.turn.complete(answered())
+  await state.clock.settle()
+  expect(state.toasts).toHaveLength(1)
+  const [toast] = state.toasts
+  expect(toast).toMatch(/^smart-compact: \/compact failed: \S/)
+  const reason = toast.replace('smart-compact: ', '').replace(/\s+/g, ' ')
+  expect(state.files['/home/a/.claude/logs/smart-compact.log']).toEqual(
+    `earlier line\n${new Date(0).toISOString()} s1 ${reason}\n`,
+  )
+  expect(state.calls).toHaveLength(1)
+})
+
 test('a focus over the limit is refused and nothing is queued', async ($, on) => {
   const { calls, clock } = world(on, { tokens: 100_000 })
   const ran = await $.tool.call({ tool: COMPACT_ME, focus: 'x'.repeat(281) } as never)
@@ -184,7 +201,23 @@ function world(on: On, start: World) {
   const state = {
     window: 1_000_000, ...start, calls: [] as string[], clock, isCompactHeld: false, release: () => {}, stepTokens: 0,
     registered: null as { description: string; focus: string } | null,
+    compactError: null as Error | null, toasts: [] as string[], files: {} as Record<string, string>,
   }
+  on('ui.toast', (_, e) => {
+    state.toasts.push(e.text)
+    return { value: undefined }
+  })
+  on('env.get', (_, e) => ({ value: e.name === 'HOME' ? '/home/a' : undefined }))
+  on('session.id', () => ({ value: 's1' }))
+  on('fs.read', (_, e) => {
+    const text = state.files[e.path]
+    if (text === undefined) throw new Error('ENOENT')
+    return { value: text }
+  })
+  on('fs.write', (_, e) => {
+    state.files[e.path] = e.text
+    return { value: undefined }
+  })
   on('session.usage', () => ({ value: { startedAt: 0, context: { tokens: state.tokens, window: state.window }, rateLimits: [] } }))
   on('tool.register', (_, e) => {
     const schema = e.inputSchema as { properties?: { focus?: { description?: string } } }
@@ -194,6 +227,7 @@ function world(on: On, start: World) {
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('command.run', (_, e) => {
     state.calls.push(`${e.command}: ${e.args}`)
+    if (state.compactError !== null) throw state.compactError
     if (!state.isCompactHeld) return {}
     return new Promise(done => { state.release = () => done({}) })
   })
